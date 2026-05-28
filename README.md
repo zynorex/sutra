@@ -1,9 +1,9 @@
 # S.U.T.R.A.
 **Secure Unjammable Tactical Resilient Array**
 
-S.U.T.R.A. is a decentralized, fault-tolerant coordination network and consensus simulator for Unmanned Aerial Vehicles (UAVs) operating in GNSS-denied and heavily contested electronic warfare (EW) environments. 
+S.U.T.R.A. is a decentralized, fault-tolerant coordination network and consensus simulator for Unmanned Aerial Vehicles (UAVs) operating in GNSS-denied and heavily contested electronic warfare (EW) environments.
 
-By unifying edge-computing consensus algorithms with Web3 cryptographic identity, S.U.T.R.A. guarantees spatial swarm integrity even when significant portions of the network are jammed, spoofed, or compromised.
+By unifying edge-computing consensus algorithms with Web3 cryptographic identity, S.U.T.R.A. guarantees spatial swarm integrity even when significant portions of the network are jammed, spoofed, or compromised
 
 ---
 
