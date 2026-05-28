@@ -1,0 +1,70 @@
+# Node modules
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Next.js / React / Vite
+.next/
+out/
+build/
+dist/
+dist-ssr/
+.env*.local
+.eslintcache
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.venv
+venv/
+venv.bak/
+ENV/
+env.bak/
+.env
+
+# Foundry / Solidity (Smart Contracts)
+cache/
+out/
+broadcast/
+.solhint.json
+deployments/
+*.t.sol.cache
+
+# IDE / Editor
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
