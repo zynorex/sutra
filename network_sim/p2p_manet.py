@@ -23,6 +23,10 @@ class CryptographicManetNode:
         # Keystore containing public keys of authorized swarm nodes
         self.authorized_keys = {}
         
+        # Nonce tracking for replay protection
+        self.nonce = 0
+        self.peer_nonces = {}
+        
         # Simulates dynamic communication omission rates (e.g., 20% packet drop due to jamming)
         self.omission_rate = 0.20 
 
@@ -54,7 +58,11 @@ class CryptographicManetNode:
 
     async def broadcast_state(self, state_data: dict):
         """Asynchronously broadcasts signed telemetry over the lossy MANET."""
-        payload_string = json.dumps(state_data)
+        self.nonce += 1
+        payload_dict = state_data.copy()
+        payload_dict["_nonce"] = self.nonce
+        
+        payload_string = json.dumps(payload_dict)
         payload_bytes = payload_string.encode('utf-8')
         signature = self.sign_message(payload_bytes)
 
@@ -102,7 +110,14 @@ class CryptographicManetNode:
 
                     if is_valid:
                         parsed_payload = json.loads(payload)
-                        print(f" Node {self.outer_node.node_id} accepted signed message from Node {sender_id}: {parsed_payload['event']}")
+                        nonce = parsed_payload.get("_nonce", -1)
+                        last_nonce = self.outer_node.peer_nonces.get(sender_id, -1)
+                        
+                        if nonce > last_nonce:
+                            self.outer_node.peer_nonces[sender_id] = nonce
+                            print(f" Node {self.outer_node.node_id} accepted signed message from Node {sender_id}: {parsed_payload['event']}")
+                        else:
+                            print(f" Node {self.outer_node.node_id} BLOCKED REPLAY packet from Node {sender_id} (nonce {nonce} <= {last_nonce}).")
                     else:
                         print(f" Node {self.outer_node.node_id} blocked unauthenticated packet from Node {sender_id}.")
                 except Exception as e:

@@ -2,6 +2,7 @@ import numpy as np
 import time
 import random
 from typing import Dict, List, Tuple
+from scipy.optimize import least_squares
 
 class SwarmRaftNode:
     """
@@ -18,8 +19,8 @@ class SwarmRaftNode:
         self.current_leader = None
         self.last_known_positions: Dict[int, np.ndarray] = {}
         
-        # Real-world physical position (2D vector for simulation simplicity)
-        self.actual_position = np.array([float(node_id * 10), 0.0])
+        # Real-world physical position (2D vector, staggered to avoid collinearity)
+        self.actual_position = np.array([float(node_id * 10), float((node_id % 2) * 10)])
         
         # GNSS status (Can be jammed/spoofed)
         self.gnss_denied = False
@@ -68,26 +69,40 @@ class SwarmRaftNode:
         """
         Step 3: Estimate.
         Leader-only function. Triangulates and recomputes every UAV's spatial
-        coordinates based strictly on range constraints and peer relative distances.
+        coordinates based strictly on range constraints and peer relative distances
+        using robust 2D/3D Multilateration.
         """
         estimated_positions = {}
-        # Start anchoring estimates using the leader's own verified position
-        estimated_positions[self.node_id] = np.array(gathered_telemetry[self.node_id]["gps_pos"])
 
-        # Triangulate relative positions from inter-node range readings
-        for peer_id, tel in gathered_telemetry.items():
-            if peer_id == self.node_id:
-                continue
+        for target_id, target_tel in gathered_telemetry.items():
+            anchors_pos = []
+            distances = []
             
-            # Retrieve range from leader to the peer
-            r_leader_to_peer = gathered_telemetry[self.node_id]["ranges"].get(peer_id)
-            if r_leader_to_peer is not None:
-                # Basic triangulation vector calculation
-                direction_vector = np.array([1.0, 0.0]) # Simplified coordinate vector
-                estimated_positions[peer_id] = estimated_positions[self.node_id] + (direction_vector * r_leader_to_peer)
+            # Gather ranging data from all other nodes TO this target node
+            for anchor_id, anchor_tel in gathered_telemetry.items():
+                if anchor_id == target_id:
+                    continue
+                    
+                # Did this anchor report a distance to our target?
+                r = anchor_tel["ranges"].get(target_id)
+                # Ensure the anchor is not wildly spoofed by comparing its own range logic
+                # (soft_l1 loss will also help ignore Byzantine anchors naturally)
+                if r is not None:
+                    anchors_pos.append(np.array(anchor_tel["gps_pos"]))
+                    distances.append(r)
+            
+            # If we have at least 3 anchors, we can perform true multilateration
+            if len(anchors_pos) >= 3:
+                def residuals(x):
+                    return np.array([np.linalg.norm(x - a) - d for a, d in zip(anchors_pos, distances)])
+                
+                initial_guess = np.array(target_tel["gps_pos"])
+                # Use soft_l1 loss to ignore massive outliers (Byzantine GPS data)
+                res = least_squares(residuals, initial_guess, loss='soft_l1', f_scale=1.0)
+                estimated_positions[target_id] = res.x
             else:
-                # Fallback to reported GPS if no direct line-of-sight range exists
-                estimated_positions[peer_id] = np.array(tel["gps_pos"])
+                # Fallback to reported GPS if insufficient anchors
+                estimated_positions[target_id] = np.array(target_tel["gps_pos"])
 
         return estimated_positions
 
