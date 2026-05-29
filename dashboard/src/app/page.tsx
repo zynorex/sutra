@@ -2,42 +2,47 @@
 
 import React, { useState, useEffect } from 'react';
 
-// Mock Data for the Swarm Simulation
-const mockSwarmData = [
-  { id: 1, state: 'LEADER', lat: 26.1102, lon: 85.3901, status: 'Active', residual: 0.0 },
-  { id: 2, state: 'FOLLOWER', lat: 26.1105, lon: 85.3895, status: 'Active', residual: 1.2 },
-  { id: 3, state: 'FOLLOWER', lat: 26.1110, lon: 85.3888, status: 'Spoofed', residual: 18.5 },
-  { id: 4, state: 'FOLLOWER', lat: 26.1098, lon: 85.3912, status: 'Active', residual: 0.8 },
-];
+// State will be fetched from API
+interface SwarmNode {
+  id: number;
+  state: string;
+  lat: number;
+  lon: number;
+  status: string;
+  residual: number;
+}
 
-const mockLogs = [
-  "[System] Initializing SwarmRaft Consensus Engine v1.0",
-  "[Node 1] Elected LEADER for Term 42",
-  "[Node 2] Telemetry validated. Ranging distance 45m",
-  "[Node 3] WARNING GNSS Residual exceeds threshold (18.5m > 10.0m)",
-  "[Node 1] Byzantine behavior detected on Node 3. Recovering spatial coordinates...",
-  "[Node 1] Finalizing secure Swarm State Map."
-];
 
 export default function Home() {
   const [logs, setLogs] = useState<string[]>([]);
+  const [swarmData, setSwarmData] = useState<SwarmNode[]>([]);
 
   useEffect(() => {
-    // Simulate log streaming from a future backend API
-    let i = 0;
-    const interval = setInterval(() => {
-      if (i < mockLogs.length) {
-        const nextLog = mockLogs[i];
-        if (nextLog) {
-            setLogs(prev => [...prev, nextLog]);
-        }
-        i++;
-      } else {
-        clearInterval(interval);
-      }
-    }, 1500);
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
     
-    return () => clearInterval(interval);
+    // Connect to Logs Stream
+    const logWs = new WebSocket(`${wsUrl}/ws/logs`);
+    logWs.onmessage = (event) => {
+      setLogs(prev => [...prev, event.data]);
+    };
+
+    // Connect to Telemetry Stream
+    const telemetryWs = new WebSocket(`${wsUrl}/ws/telemetry`);
+    telemetryWs.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.nodes) {
+          setSwarmData(data.nodes);
+        }
+      } catch (e) {
+        console.error("Failed to parse telemetry data", e);
+      }
+    };
+
+    return () => {
+      logWs.close();
+      telemetryWs.close();
+    };
   }, []);
 
   return (
@@ -78,7 +83,7 @@ export default function Home() {
                   {log}
                 </div>
               ))}
-              {logs.length < mockLogs.length && <span style={{ animation: 'blink 1s step-end infinite' }}>_</span>}
+              {logs.length === 0 && <span style={{ animation: 'blink 1s step-end infinite' }}>_</span>}
             </div>
           </div>
         </div>
@@ -117,7 +122,12 @@ export default function Home() {
             <div className="product-mockup-card-dark interactive-card">
               <h3 className="title-md" style={{ margin: '0 0 24px 0' }}>Live Swarm Nodes</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {mockSwarmData.map(node => (
+                {swarmData.length === 0 && (
+                  <div style={{ padding: '16px', color: 'var(--color-on-dark-soft)', textAlign: 'center' }}>
+                    Waiting for simulator connection...
+                  </div>
+                )}
+                {swarmData.map(node => (
                   <div key={node.id} style={{ 
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     padding: '16px', backgroundColor: 'var(--color-surface-dark-soft)', borderRadius: 'var(--rounded-md)'
@@ -125,17 +135,18 @@ export default function Home() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                       <div style={{ 
                         width: '8px', height: '8px', borderRadius: '50%', 
-                        backgroundColor: node.state === 'LEADER' ? 'var(--color-success)' : 
+                        backgroundColor: node.state === 'Leader' ? 'var(--color-success)' : 
                                        node.status === 'Spoofed' ? 'var(--color-error)' : 'var(--color-accent-teal)'
                       }}></div>
                       <div>
                         <div className="title-sm" style={{ fontFamily: 'var(--font-sans)' }}>{`UAV ${node.id}`}</div>
-                        <div className="body-sm" style={{ color: 'var(--color-on-dark-soft)', fontFamily: 'var(--font-sans)' }}>{node.state}</div>
+                        <div className="body-sm" style={{ color: 'var(--color-on-dark-soft)', fontFamily: 'var(--font-sans)' }}>{node.state.toUpperCase()}</div>
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div className="code-text" style={{ fontSize: '13px', color: 'var(--color-on-dark-soft)' }}>
-                        LAT: {node.lat.toFixed(4)} | LON: {node.lon.toFixed(4)}
+                        LAT: {node.lat ? node.lat.toFixed(4) : node.corrected_pos?.[0]?.toFixed(4) || "0.0000"} | 
+                        LON: {node.lon ? node.lon.toFixed(4) : node.corrected_pos?.[1]?.toFixed(4) || "0.0000"}
                       </div>
                       {node.status === 'Spoofed' && (
                         <span className="badge-coral" style={{ marginTop: '8px', fontSize: '10px' }}>BYZANTINE</span>
